@@ -1,1 +1,1 @@
-from random_util import *
+from .random_util import *
