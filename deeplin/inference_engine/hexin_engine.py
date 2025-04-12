@@ -78,7 +78,7 @@ class ApiInferenceEngine(InferenceEngine):
         logger.debug(f"User ID: {self.user_id}, Token: {self.token}")
         available_models = ["gpt-3.5-turbo", "ep-20250204210426-gclbn"]
         if model not in available_models:
-            raise ValueError(f"Model {model} is not available. Please choose from {available_models}.")
+            logger.warning(f"Model {model} is not available. Please choose from {available_models}.")
 
     def inference(self, prompts: list[str] | list[list[dict]], n=1, **kwargs) -> list[list[str]]:
         model = kwargs.get("model", self.model)
