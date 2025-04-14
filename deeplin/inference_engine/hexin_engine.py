@@ -4,7 +4,7 @@ import os
 from loguru import logger
 from xlin import element_mapping
 
-from .base import InferenceEngine
+from deeplin.inference_engine.base import InferenceEngine
 
 
 def get_userid_and_token(
