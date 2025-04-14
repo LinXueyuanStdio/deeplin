@@ -1,4 +1,4 @@
-from .base import InferenceEngine
+from deeplin.inference_engine.base import InferenceEngine
 
 
 def build_inference_engine(args) -> InferenceEngine:
