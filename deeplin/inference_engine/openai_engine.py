@@ -2,7 +2,7 @@ import os
 import openai
 
 
-from .base import InferenceEngine
+from deeplin.inference_engine.base import InferenceEngine
 
 
 class OpenAIApiInferenceEngine(InferenceEngine):
