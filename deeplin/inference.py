@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from loguru import logger
 
 from xlin import read_as_dataframe, dataframe_to_json_list, ls, xmap
-from .inference_engine import build_inference_engine, batch_inference
+from deeplin.inference_engine import build_inference_engine, batch_inference
 
 
 load_dotenv()
