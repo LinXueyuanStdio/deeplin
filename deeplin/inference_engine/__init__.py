@@ -45,12 +45,13 @@ def build_inference_engine(
 def batch_inference(
     inference_engine: InferenceEngine,
     rows: list[dict],
-    prompt_key: str,
+    prompt_key: str="prompt",
+    n: int = 1,
     **kwargs,
 ):
     """Perform batch inference using the provided inference engine."""
     prompts = [row[prompt_key] for row in rows]
-    responses = inference_engine.inference(prompts, **kwargs)
+    responses = inference_engine.inference(prompts, n=n, **kwargs)
     for row, n_responses in zip(rows, responses):
         choices: list[dict] = row.get("choices", [])
         start_idx = len(choices)
