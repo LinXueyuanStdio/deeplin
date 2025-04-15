@@ -26,6 +26,7 @@ def api_inference(
     model: str,
     max_tokens: int,
     temperature: float,
+    top_p: float,
     n: int,
     timeout: int,
     debug: bool = False,
@@ -39,6 +40,7 @@ def api_inference(
             "temperature": temperature,
             "model": model,
             "max_tokens": max_tokens,
+            "top_p": top_p,
             "n": n,
         },
         headers=chat_h,
@@ -66,10 +68,11 @@ def api_inference(
     return responses
 
 class ApiInferenceEngine(InferenceEngine):
-    def __init__(self, model: str, max_tokens: int, temperature: float = 0.6):
+    def __init__(self, model: str, max_tokens: int, temperature: float = 0.6, top_p: float = 1.0):
         self.model = model
         self.max_tokens = max_tokens
         self.temperature = temperature
+        self.top_p = top_p
         app_id = os.getenv("HITHINK_APP_ID")
         app_secret = os.getenv("HITHINK_APP_SECRET")
         if app_id is None or app_secret is None:
@@ -84,6 +87,7 @@ class ApiInferenceEngine(InferenceEngine):
         model = kwargs.get("model", self.model)
         max_tokens = kwargs.get("max_tokens", self.max_tokens)
         temperature = kwargs.get("temperature", self.temperature)
+        top_p = kwargs.get("top_p", self.top_p)
         timeout = kwargs.get("timeout", 100)
         debug = kwargs.get("debug", False)
         messages_list = []
@@ -105,6 +109,7 @@ class ApiInferenceEngine(InferenceEngine):
                 model,
                 max_tokens,
                 temperature,
+                top_p,
                 n,
                 timeout,
                 debug,
