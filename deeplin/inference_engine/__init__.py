@@ -1,32 +1,45 @@
 from deeplin.inference_engine.base import InferenceEngine
 
 
-def build_inference_engine(args) -> InferenceEngine:
+def build_inference_engine(
+    engine: str,
+    model: str,
+    max_tokens: int = 512,
+    temperature: float = 0.6,
+    top_p: float = 1.0,
+    tensor_parallel_size: int = 1,
+) -> InferenceEngine:
     """Build inference engine based on the provided arguments."""
-    if args.engine == "openai":
+    if engine == "openai":
         from .openai_engine import OpenAIApiInferenceEngine
+
         return OpenAIApiInferenceEngine(
-            args.model,
-            args.max_tokens,
-            args.temperature,
-            args.top_p,
+            model,
+            max_tokens,
+            temperature,
+            top_p,
         )
-    elif args.engine == "vllm":
+    elif engine == "vllm":
         from .vllm_engine import vllmInferenceEngine
+
         return vllmInferenceEngine(
-            args.model,
-            args.max_tokens,
-            args.tensor_parallel_size,
+            model,
+            max_tokens,
+            temperature,
+            top_p,
+            tensor_parallel_size,
         )
-    elif args.engine == "api":
+    elif engine == "api":
         from .hexin_engine import ApiInferenceEngine
+
         return ApiInferenceEngine(
-            args.model,
-            args.max_tokens,
-            args.temperature,
+            model,
+            max_tokens,
+            temperature,
+            top_p,
         )
     else:
-        raise ValueError(f"Unknown engine: {args.engine}")
+        raise ValueError(f"Unknown engine: {engine}")
 
 
 def batch_inference(
