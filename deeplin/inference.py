@@ -36,11 +36,11 @@ def main(args):
         batch_inference,
         inference_engine=inference_engine,
         prompt_key=args.prompt_key,
+        n=args.n,
         model=args.model,
         max_tokens=args.max_tokens,
         temperature=args.temperature,
         top_p=args.top_p,
-        n=args.n,
     )
     for path in data_paths:
         save_path = output_dir / path.with_suffix(".jsonl")
