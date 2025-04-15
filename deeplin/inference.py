@@ -20,7 +20,14 @@ def main(args):
     4. save results at key 'choices': [{"index": 0, "message": {"role": "assistant", "content": "<think> reasoning process here </think><answer> answer here </answer>"}}]
     """
     batch_size = args.batch_size
-    inference_engine = build_inference_engine(args)
+    inference_engine = build_inference_engine(
+        engine=args.engine,
+        model=args.model,
+        max_tokens=args.max_tokens,
+        temperature=args.temperature,
+        top_p=args.top_p,
+        tensor_parallel_size=args.tensor_parallel_size,
+    )
     data_paths = ls(args.data_dir)
     output_dir = Path(args.save_dir)
     if not output_dir.exists():
