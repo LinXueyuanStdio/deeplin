@@ -1,5 +1,6 @@
-from .base import InferenceEngine
 from loguru import logger
+
+from deeplin.inference_engine.base import InferenceEngine
 
 try:
     from vllm import LLM, SamplingParams
