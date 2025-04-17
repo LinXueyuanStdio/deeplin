@@ -29,27 +29,57 @@ def api_inference(
     top_p: float,
     n: int,
     timeout: int,
+    multi_modal: bool = False,
     debug: bool = False,
 ):
     chat_h = {"Content-Type": "application/json", "userId": user_id, "token": token}
-    chat_url = "https://arsenal-openai.10jqka.com.cn:8443/vtuber/ai_access/doubao/v3/chat/completions"
+    params = {
+        "messages": input_message,
+        "temperature": temperature,
+        "model": model,
+        "max_tokens": max_tokens,
+        "top_p": top_p,
+        "n": n,
+    }
+    version = "v1"
+    if model == "claude":
+        symbol = "claude"
+        params["model"] = "claude-3-7-sonnet@20250219"
+        params['anthropic_version'] = 'vertex-2023-10-16'
+        version = "v3"
+    elif "doubao" in model or model in ["ep-20250204210426-gclbn", "ep-20250410151344-fzm9z", "deepseek-reasoner", "deepseek-chat"]:
+        symbol = "doubao"
+        version = "v3"
+        if "r1" in model or "reasoner" in model:
+            params["model"] = 'ep-20250410145517-rpbrz'
+            del params["n"] # remove n for reasoning
+        elif "v3" in model or "chat" in model:
+            params["model"] = 'ep-20250410151344-fzm9z'
+    elif model == "r1-qianfan":
+        symbol = "qianfan"
+        params["model"] = 'deepseek-r1'
+        del params["n"] # remove n for reasoning
+    elif model == "gemini":
+        symbol = "gemini"
+        params["model"] = 'gemini-2.5-pro-preview-03-25'
+    else:
+        symbol = "chatgpt"
+
+    if multi_modal:
+        chat_url = 'https://arsenal-openai.10jqka.com.cn:8443/vtuber/ai_access/chatgpt/v1/picture/chat/completions'
+    else:
+        chat_url = f'https://arsenal-openai.10jqka.com.cn:8443/vtuber/ai_access/{symbol}/{version}/chat/completions'
+
     res = requests.post(
         chat_url,
-        json={
-            "messages": input_message,
-            "temperature": temperature,
-            "model": model,
-            "max_tokens": max_tokens,
-            "top_p": top_p,
-            "n": n,
-        },
+        json=params,
         headers=chat_h,
         timeout=timeout,
     )
     resp = res.json()
-    if debug:
+    if debug or "choices" not in resp:
         logger.debug(resp)
-    choices = resp["choices"]
+    choices = resp.get("choices", [])
     responses: list[str] = []
     if len(choices) == 0:
         logger.warning("No response from server.")
@@ -57,11 +87,17 @@ def api_inference(
     if len(choices) < n:
         logger.warning(f"Expected {n} responses, but got {len(choices)}.")
     for i in range(min(n, len(choices))):
-        message = choices[i]["message"]
-        content = message["content"] if "content" in message else ""
-        reasoning_content = message["reasoning_content"] if "reasoning_content" in message else ""
-        if len(reasoning_content) > 0:
-            content = f"<think>\n{reasoning_content}\n</think>\n{content}"
+        item = choices[i]
+        if "message" in item:
+            message = item["message"]
+            content = message["content"] if "content" in message else ""
+            reasoning_content = message["reasoning_content"] if "reasoning_content" in message else ""
+            if len(reasoning_content) > 0:
+                content = f"<think>\n{reasoning_content}\n</think>\n{content}"
+        elif "text" in item:
+            content = item["text"]
+        else:
+            content = item
         responses.append(content)
     if len(responses) < n:
         responses += [None] * (n - len(responses))
@@ -79,7 +115,16 @@ class ApiInferenceEngine(InferenceEngine):
             raise ValueError("HITHINK_APP_ID and HITHINK_APP_SECRET must be set in environment variables.")
         self.user_id, self.token = get_userid_and_token(app_id=app_id, app_secret=app_secret)
         logger.debug(f"User ID: {self.user_id}, Token: {self.token}")
-        available_models = ["gpt-3.5-turbo", "ep-20250204210426-gclbn"]
+        available_models = [
+            "gpt-3.5-turbo",
+            "gpt4o",
+            "gpt4",
+            "claude",
+            "gemini",
+            "doubao-deepseek-r1", "ep-20250204210426-gclbn", "deepseek-reasoner", # deepseek-reasoner
+            "doubao-deepseek-v3", "ep-20250410145517-rpbrz", "deepseek-chat", # deepseek-chat
+            "r1-qianfan",
+        ]
         if model not in available_models:
             logger.warning(f"Model {model} is not available. Please choose from {available_models}.")
 
