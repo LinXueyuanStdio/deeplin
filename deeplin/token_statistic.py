@@ -1,0 +1,48 @@
+from pathlib import Path
+from typing import Callable
+from functools import partial
+
+from transformers import AutoTokenizer
+
+from xlin import xmap, draw_histogram
+
+
+def token_counts(texts: list[str], tokenizer, **kwargs) -> list[int]:
+  # 批量分词
+  encoded_inputs = tokenizer(texts, **kwargs)
+
+  # 统计每个文本的 token 数
+  token_counts = [len(input_ids) for input_ids in encoded_inputs['input_ids']]
+
+  return token_counts
+
+
+def assign_token_count(rows: list[dict], text_fn: Callable[[dict[str, str]], str], tokenizer) -> list[dict]:
+    texts = [text_fn(row) for row in rows]
+    inputs = tokenizer(texts, add_special_tokens=False)
+    filtered_rows = []
+    for row, input_ids in zip(rows, inputs["input_ids"]):
+        row["token_count"] = len(input_ids)
+        filtered_rows.append(row)
+    return filtered_rows
+
+
+def response_text_fn(row: dict[str, str]) -> str:
+    return row["messages"][-1]["content"]
+
+
+def draw_token_count_histogram(jsonlist: list[dict[str, str]], text_fn: Callable[[dict[str, str]], str], output_path: str):
+    """
+    统计文本长度分布并绘制直方图
+    :param jsonlist: jsonlist
+    :param text_fn: 文本函数
+    :param output_dir: 输出目录
+    """
+    tokenizer = AutoTokenizer.from_pretrained("/mnt/data/linxueyuan/CloseAI/Logic-RL/models/chat/DeepSeek-R1-Distill-Qwen-7B-fixed")
+    assign_token_count_fn = partial(assign_token_count, text_fn=text_fn, tokenizer=tokenizer)
+    rows = xmap(jsonlist, assign_token_count_fn, thread_pool_size=16, is_batch_work_func=True)
+    lengths = [row["token_count"] for row in rows]
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    draw_histogram(lengths, bins=100, title="Token Count Distribution", fig_save_path=output_path)
+
