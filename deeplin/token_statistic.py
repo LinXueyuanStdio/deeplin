@@ -34,6 +34,7 @@ def response_text_fn(row: dict[str, str]) -> str:
 
 
 def draw_token_count_histogram(
+    tokenizer_path: str,
     jsonlist: list[dict[str, str]],
     text_fn: Callable[[dict[str, str]], str],
     output_path: str,
@@ -44,9 +45,7 @@ def draw_token_count_histogram(
     :param text_fn: 文本函数
     :param output_dir: 输出目录
     """
-    tokenizer = AutoTokenizer.from_pretrained(
-        "/mnt/data/linxueyuan/CloseAI/Logic-RL/models/chat/DeepSeek-R1-Distill-Qwen-7B-fixed"
-    )
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
     assign_token_count_fn = partial(
         assign_token_count, text_fn=text_fn, tokenizer=tokenizer
     )
@@ -73,6 +72,12 @@ if __name__ == "__main__":
         help="Path to the input JSONL file",
     )
     parser.add_argument(
+        "--tokenizer_path",
+        type=str,
+        required=True,
+        help="Path to the tokenizer model",
+    )
+    parser.add_argument(
         "--output_path",
         type=str,
         default="token_count_histogram.png",
@@ -81,6 +86,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     data_path = Path(args.data_path)
     jsonlist = load_json_or_jsonl(data_path)
-    draw_token_count_histogram(jsonlist, response_text_fn, args.output_path)
+    draw_token_count_histogram(args.tokenizer_path, jsonlist, response_text_fn, args.output_path)
 
     print(f"Token count histogram saved to: {args.output_path}")
