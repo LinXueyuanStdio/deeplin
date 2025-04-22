@@ -1,12 +1,9 @@
 import argparse
-from pathlib import Path
-from functools import partial
 
 from dotenv import load_dotenv
 from loguru import logger
 
-from xlin import read_as_dataframe, dataframe_to_json_list, ls, xmap
-from deeplin.inference_engine import build_inference_engine, batch_inference
+from deeplin.inference_engine import build_inference_engine
 
 
 load_dotenv()
@@ -28,44 +25,20 @@ def main(args):
         top_p=args.top_p,
         tensor_parallel_size=args.tensor_parallel_size,
     )
-    data_paths = ls(args.data_dir)
-    output_dir = Path(args.save_dir)
-    if not output_dir.exists():
-        output_dir.mkdir(parents=True)
-    f = partial(
-        batch_inference,
-        inference_engine=inference_engine,
-        prompt_key=args.prompt_key,
+    results = inference_engine.inference(
+        [args.prompt],
         n=args.n,
-        model=args.model,
         max_tokens=args.max_tokens,
         temperature=args.temperature,
         top_p=args.top_p,
+        timeout=args.timeout,
+        debug=args.debug,
     )
-    for path in data_paths:
-        save_path = output_dir / path.with_suffix(".jsonl")
-        df = read_as_dataframe(path)
-        jsonlist = dataframe_to_json_list(df)
-        if not jsonlist:
-            logger.warning(f"Empty json list for {path}.")
-            continue
-        logger.info(
-            f"Loaded dataset from {path}, {len(df)} records. Cache path: {save_path}"
-        )
-        xmap(
-            jsonlist,
-            f,
-            output_path=save_path,
-            force_overwrite=False,
-            batch_size=batch_size,
-            is_batch_work_func=True,
-        )
+    logger.info(f"Results: {results}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Inference script")
-    parser.add_argument("--data_dir", type=str, default="data", help="Data directory")
-    parser.add_argument("--save_dir", type=str, default="output", help="Save directory")
     parser.add_argument(
         "--engine",
         type=str,
@@ -103,9 +76,9 @@ if __name__ == "__main__":
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument(
-        "--prompt_key",
+        "--prompt",
         type=str,
-        default="prompt",
+        default="introduce yourself",
         help="Key for the prompt in the input data",
     )
 
