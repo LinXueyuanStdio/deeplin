@@ -1,3 +1,4 @@
+from functools import partial
 import requests
 import os
 
@@ -41,6 +42,7 @@ def api_inference(
         "top_p": top_p,
         "n": n,
     }
+    rollout_n = None
     version = "v1"
     if model == "claude":
         symbol = "claude"
@@ -52,13 +54,13 @@ def api_inference(
         version = "v3"
         if "r1" in model or "reasoner" in model:
             params["model"] = 'ep-20250410145517-rpbrz'
-            del params["n"] # remove n for reasoning
+            rollout_n = params.pop("n", None)
         elif "v3" in model or "chat" in model:
             params["model"] = 'ep-20250410151344-fzm9z'
     elif model == "r1-qianfan":
         symbol = "qianfan"
         params["model"] = 'deepseek-r1'
-        del params["n"] # remove n for reasoning
+        rollout_n = params.pop("n", None)
     elif model == "gemini":
         symbol = "gemini"
         params["model"] = 'gemini-2.5-pro-preview-03-25'
@@ -128,6 +130,14 @@ class ApiInferenceEngine(InferenceEngine):
         if model not in available_models:
             logger.warning(f"Model {model} is not available. Please choose from {available_models}.")
 
+    def is_reasoning_model(self, model: str):
+        reasoning_models = [
+            "doubao-deepseek-r1", "ep-20250410145517-rpbrz", "deepseek-reasoner",
+            "doubao-deepseek-v3", "ep-20250410151344-fzm9z", "deepseek-chat",
+            "r1-qianfan",
+        ]
+        return model in reasoning_models
+
     def inference(self, prompts: list[str] | list[list[dict]], n=1, **kwargs) -> list[list[str]]:
         model = kwargs.get("model", self.model)
         max_tokens = kwargs.get("max_tokens", self.max_tokens)
@@ -147,6 +157,22 @@ class ApiInferenceEngine(InferenceEngine):
                 raise ValueError(f"Invalid prompt format: {prompt}")
 
         def f(messages: list[dict]):
+            if self.is_reasoning_model(model):
+                messages_list = [messages for _ in range(n)]
+                partial_api_inference = partial(
+                    api_inference,
+                    user_id=self.user_id,
+                    token=self.token,
+                    model=model,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    top_p=top_p,
+                    n=1,
+                    timeout=timeout,
+                    debug=debug,
+                )
+                responses = element_mapping(messages_list, partial_api_inference)
+                return True, responses
             return True, api_inference(
                 self.user_id,
                 self.token,
