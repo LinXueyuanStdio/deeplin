@@ -145,6 +145,8 @@ class ApiInferenceEngine(InferenceEngine):
         top_p = kwargs.get("top_p", self.top_p)
         timeout = kwargs.get("timeout", 100)
         debug = kwargs.get("debug", False)
+        if debug:
+            logger.warning(f"is reasoning model: {self.is_reasoning_model(model)}")
         messages_list = []
         for prompt in prompts:
             if isinstance(prompt, dict):
