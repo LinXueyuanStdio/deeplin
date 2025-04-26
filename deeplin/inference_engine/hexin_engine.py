@@ -159,34 +159,46 @@ class ApiInferenceEngine(InferenceEngine):
                 raise ValueError(f"Invalid prompt format: {prompt}")
 
         def f(messages: list[dict]):
-            if self.is_reasoning_model(model):
-                messages_list = [messages for _ in range(n)]
-                partial_api_inference = partial(
-                    api_inference,
-                    user_id=self.user_id,
-                    token=self.token,
-                    model=model,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    top_p=top_p,
-                    n=1,
-                    timeout=timeout,
-                    debug=debug,
-                )
-                responses = element_mapping(messages_list, partial_api_inference)
-                return True, responses
             return True, api_inference(
-                self.user_id,
-                self.token,
-                messages,
-                model,
-                max_tokens,
-                temperature,
-                top_p,
-                n,
-                timeout,
-                debug,
+                user_id=self.user_id,
+                token=self.token,
+                input_message=messages,
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                n=n,
+                timeout=timeout,
+                multi_modal=False,
+                debug=debug,
             )
+        def g(messages: list[dict]):
+            results = api_inference(
+                user_id=self.user_id,
+                token=self.token,
+                input_message=messages,
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                n=1,
+                timeout=timeout,
+                multi_modal=False,
+                debug=debug,
+            )
+            return True, results[0] if len(results) > 0 else None
+        if self.is_reasoning_model(model):
+            n_messages_list = sum([messages_list for _ in range(n)], [])
+            n_responses = element_mapping(n_messages_list, g)
+            num = len(messages_list)
+            responses = []
+            for i in range(num):
+                responses_i = []
+                for j in range(n):
+                    responses_i.append(n_responses[i + j * num])
+                responses.append(responses_i)
+            return responses
+
         if len(messages_list) == 1:
             return f(messages_list[0])[1]
         responses = element_mapping(messages_list, f)
