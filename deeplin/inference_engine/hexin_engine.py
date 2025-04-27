@@ -198,8 +198,5 @@ class ApiInferenceEngine(InferenceEngine):
                     responses_i.append(n_responses[i + j * num])
                 responses.append(responses_i)
             return responses
-
-        if len(messages_list) == 1:
-            return f(messages_list[0])[1]
         responses = element_mapping(messages_list, f)
         return responses
