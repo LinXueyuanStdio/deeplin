@@ -72,13 +72,18 @@ def api_inference(
     else:
         chat_url = f'https://arsenal-openai.10jqka.com.cn:8443/vtuber/ai_access/{symbol}/{version}/chat/completions'
 
-    res = requests.post(
-        chat_url,
-        json=params,
-        headers=chat_h,
-        timeout=timeout,
-    )
-    resp = res.json()
+    try:
+        res = requests.post(
+            chat_url,
+            json=params,
+            headers=chat_h,
+            timeout=timeout,
+        )
+        resp = res.json()
+    except Exception as e:
+        logger.error(f"Error during API request: {e}")
+        return [None] * n
+
     if debug or "choices" not in resp:
         logger.debug(resp)
     choices = resp.get("choices", [])
