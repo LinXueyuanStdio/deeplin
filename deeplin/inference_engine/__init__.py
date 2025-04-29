@@ -8,35 +8,41 @@ def build_inference_engine(
     temperature: float = 0.6,
     top_p: float = 1.0,
     tensor_parallel_size: int = 1,
+    max_model_len: int = 8192,
+    gpu_memory_utilization: float = 0.95,
+    **kwargs,
 ) -> InferenceEngine:
     """Build inference engine based on the provided arguments."""
     if engine == "openai":
         from .openai_engine import OpenAIApiInferenceEngine
 
         return OpenAIApiInferenceEngine(
-            model,
-            max_tokens,
-            temperature,
-            top_p,
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
         )
     elif engine == "vllm":
         from .vllm_engine import vllmInferenceEngine
 
         return vllmInferenceEngine(
-            model,
-            max_tokens,
-            temperature,
-            top_p,
-            tensor_parallel_size,
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            tensor_parallel_size=tensor_parallel_size,
+            max_model_len=max_model_len,
+            gpu_memory_utilization=gpu_memory_utilization,
+            **kwargs,
         )
     elif engine == "api":
         from .hexin_engine import ApiInferenceEngine
 
         return ApiInferenceEngine(
-            model,
-            max_tokens,
-            temperature,
-            top_p,
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
         )
     else:
         raise ValueError(f"Unknown engine: {engine}")
