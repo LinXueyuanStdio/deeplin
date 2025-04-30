@@ -49,6 +49,7 @@ def api_inference(
         params["model"] = "claude-3-7-sonnet@20250219"
         params['anthropic_version'] = 'vertex-2023-10-16'
         version = "v3"
+        rollout_n = params.pop("n", None)
     elif "doubao" in model or model in ["ep-20250204210426-gclbn", "ep-20250410151344-fzm9z", "deepseek-reasoner", "deepseek-chat"]:
         symbol = "doubao"
         version = "v3"
@@ -135,13 +136,13 @@ class ApiInferenceEngine(InferenceEngine):
         if model not in available_models:
             logger.warning(f"Model {model} is not available. Please choose from {available_models}.")
 
-    def is_reasoning_model(self, model: str):
-        reasoning_models = [
+    def support_n_sampling(self, model: str):
+        models = [
             "doubao-deepseek-r1", "ep-20250410145517-rpbrz", "deepseek-reasoner",
             "doubao-deepseek-v3", "ep-20250410151344-fzm9z", "deepseek-chat",
-            "r1-qianfan",
+            "r1-qianfan", "claude",
         ]
-        return model in reasoning_models
+        return model in models
 
     def inference(self, prompts: list[str] | list[list[dict]], n=1, **kwargs) -> list[list[str]]:
         model = kwargs.get("model", self.model)
@@ -151,7 +152,7 @@ class ApiInferenceEngine(InferenceEngine):
         timeout = kwargs.get("timeout", 100)
         debug = kwargs.get("debug", False)
         if debug:
-            logger.warning(f"is reasoning model: {self.is_reasoning_model(model)}")
+            logger.warning(f"supports n sampling: {self.support_n_sampling(model)}")
         messages_list = []
         for prompt in prompts:
             if isinstance(prompt, dict):
