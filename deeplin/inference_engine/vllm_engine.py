@@ -10,7 +10,15 @@ except ImportError:
 
 
 class vllmInferenceEngine(InferenceEngine):
-    def __init__(self, model: str, max_tokens: int, temperature: float, top_p: float, tensor_parallel_size: int):
+    def __init__(self,
+                 model: str,
+                 max_tokens: int,
+                 temperature: float,
+                 top_p: float,
+                 tensor_parallel_size: int,
+                 max_model_len: int,
+                 gpu_memory_utilization: float = 0.95,
+                 **kwargs):
         self.model = model
         self.max_tokens = max_tokens
         self.temperature = temperature
@@ -18,9 +26,10 @@ class vllmInferenceEngine(InferenceEngine):
         self.llm = LLM(
             model=model,
             tensor_parallel_size=tensor_parallel_size,
-            max_model_len=max_tokens,
-            gpu_memory_utilization=0.95,
+            max_model_len=max_model_len,
+            gpu_memory_utilization=gpu_memory_utilization,
             enforce_eager=False,
+            **kwargs,
         )
 
     def inference(self, prompts: list[str] | list[list[dict]], n=1, **kwargs) -> list[list[str]]:
