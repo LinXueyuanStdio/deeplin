@@ -193,7 +193,7 @@ class ApiInferenceEngine(InferenceEngine):
                 debug=debug,
             )
             return True, results[0] if len(results) > 0 else None
-        if self.is_reasoning_model(model):
+        if self.support_n_sampling(model):
             n_messages_list = sum([messages_list for _ in range(n)], [])
             n_responses = element_mapping(n_messages_list, g)
             num = len(messages_list)
