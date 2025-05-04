@@ -89,6 +89,8 @@ def api_inference(
         logger.debug(resp)
     if rollout_n is not None:
         if model == "claude" and "content" in resp:
+            if isinstance(resp["content"], list) and len(resp["content"]) == 1 and resp["content"][0].get("type") == "text":
+                resp["content"] = resp["content"][0]["text"]
             resp["choices"] = [{"message": resp}]
     choices = resp.get("choices", [])
     responses: list[str] = []
