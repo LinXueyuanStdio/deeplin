@@ -65,6 +65,12 @@ def api_inference(
     elif model == "gemini":
         symbol = "gemini"
         params["model"] = 'gemini-2.5-pro-preview-03-25'
+    elif model in ["gpt-4o-mini", "o3", "o4-mini"]:
+        del params["max_tokens"]
+        params["max_completion_tokens"] = max_tokens
+        symbol = "chatgpt"
+        if model in ["o3", "o4-mini"]:
+            del params["temperature"]
     else:
         symbol = "chatgpt"
 
@@ -81,6 +87,8 @@ def api_inference(
             timeout=timeout,
         )
         resp = res.json()
+        if "data" in resp:
+            resp = resp["data"]
     except Exception as e:
         logger.error(f"Error during API request: {e}")
         return [None] * n
@@ -95,7 +103,7 @@ def api_inference(
     choices = resp.get("choices", [])
     responses: list[str] = []
     if len(choices) == 0:
-        logger.warning("No response from server.")
+        logger.warning(f"No response from server.\n{resp}")
         return [None] * n
     if len(choices) < n:
         logger.warning(f"Expected {n} responses, but got {len(choices)}.")
@@ -130,7 +138,7 @@ class ApiInferenceEngine(InferenceEngine):
         logger.debug(f"User ID: {self.user_id}, Token: {self.token}")
         available_models = [
             "gpt-3.5-turbo",
-            "gpt4o",
+            "gpt4o", "o3", "o4-mini",
             "gpt4",
             "claude",
             "gemini",
@@ -156,6 +164,7 @@ class ApiInferenceEngine(InferenceEngine):
         top_p = kwargs.get("top_p", self.top_p)
         timeout = kwargs.get("timeout", 100)
         debug = kwargs.get("debug", False)
+        multi_modal = kwargs.get("multi_modal", False)
         if debug:
             logger.warning(f"supports n sampling: {self.support_n_sampling(model)}")
         messages_list = []
@@ -180,7 +189,7 @@ class ApiInferenceEngine(InferenceEngine):
                 top_p=top_p,
                 n=n,
                 timeout=timeout,
-                multi_modal=False,
+                multi_modal=multi_modal,
                 debug=debug,
             )
         def g(messages: list[dict]):
@@ -194,7 +203,7 @@ class ApiInferenceEngine(InferenceEngine):
                 top_p=top_p,
                 n=1,
                 timeout=timeout,
-                multi_modal=False,
+                multi_modal=multi_modal,
                 debug=debug,
             )
             return True, results[0] if len(results) > 0 else None
@@ -211,3 +220,31 @@ class ApiInferenceEngine(InferenceEngine):
             return responses
         responses = element_mapping(messages_list, f)
         return responses
+
+from PIL import Image
+from io import BytesIO
+import base64
+def image2base64(image: Image.Image) -> str:
+    buffered = BytesIO()
+    image.save(buffered, format="PNG")
+    b64 = base64.b64encode(buffered.getvalue()).decode()
+    return f"data:image/png;base64,{b64}"
+
+
+if __name__ == "__main__":
+    engine = ApiInferenceEngine(model="o3", max_tokens=1000)
+    path = "/Users/lxy/Documents/GitHub/LinXueyuanStdio/deeplin/assets/kline.png"
+    image = Image.open(path)
+    base64image = image2base64(image)
+    prompt = "What is in the image?"
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": base64image},
+                {"type": "text", "text": prompt},
+            ]
+         },
+    ]
+    response = engine.inference([messages], n=1, multi_modal=True, debug=True)[0][0]
+    print(response)
