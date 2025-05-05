@@ -179,6 +179,8 @@ class ApiInferenceEngine(InferenceEngine):
                 raise ValueError(f"Invalid prompt format: {prompt}")
 
         def f(messages: list[dict]):
+            if not messages:
+                return True, [None] * n
             return True, api_inference(
                 user_id=self.user_id,
                 token=self.token,
@@ -193,6 +195,8 @@ class ApiInferenceEngine(InferenceEngine):
                 debug=debug,
             )
         def g(messages: list[dict]):
+            if not messages:
+                return True, None
             results = api_inference(
                 user_id=self.user_id,
                 token=self.token,
