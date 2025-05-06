@@ -19,6 +19,9 @@ class OpenAIApiInferenceEngine(InferenceEngine):
     def inference(self, prompts: list[str] | list[list[dict]], n=1, **kwargs) -> list[list[str]]:
         responses = []
         for prompt in prompts:
+            if not prompt:
+                responses.append([None] * n)
+                continue
             if isinstance(prompt, dict):
                 messages = [prompt]
             elif isinstance(prompt, str):
