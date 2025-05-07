@@ -33,6 +33,10 @@ class vllmInferenceEngine(InferenceEngine):
         )
 
     def inference(self, prompts: list[str] | list[list[dict]], n=1, **kwargs) -> list[list[str]]:
+        not_none_index = [i for i, prompt in enumerate(prompts) if prompt is not None]
+        # If all prompts are None, return a list of None
+        if len(not_none_index) == 0:
+            return [[None] * n for _ in range(len(prompts))]
         sampling_params = SamplingParams(
             temperature=kwargs.get("temperature", self.temperature),
             top_p=kwargs.get("top_p", self.top_p),
@@ -46,4 +50,15 @@ class vllmInferenceEngine(InferenceEngine):
             for i in range(n):
                 n_responses.append(output.outputs[i].text)
             responses.append(n_responses)
-        return responses
+        # If all prompts are not None, return the responses
+        if len(not_none_index) == len(prompts):
+            return responses
+        # If some prompts are None, return the responses for the non-None prompts and None for the None prompts
+        # and keep the order of the original prompts
+        final_responses = []
+        for i in range(len(prompts)):
+            if i in not_none_index:
+                final_responses.append(responses[not_none_index.index(i)])
+            else:
+                final_responses.append([None] * n)
+        return final_responses
