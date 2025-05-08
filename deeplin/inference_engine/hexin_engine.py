@@ -176,7 +176,7 @@ class ApiInferenceEngine(InferenceEngine):
             elif isinstance(prompt, list):
                 messages_list.append(prompt)
             else:
-                raise ValueError(f"Invalid prompt format: {prompt}")
+                messages_list.append(prompt)
 
         def f(messages: list[dict]):
             if not messages:
