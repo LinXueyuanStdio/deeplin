@@ -252,3 +252,17 @@ if __name__ == "__main__":
     ]
     response = engine.inference([messages], n=1, multi_modal=True, debug=True)[0][0]
     print(response)
+
+
+    engine = ApiInferenceEngine(model="deepseek-chat", max_tokens=1000)
+    prompt = "Hello, how are you?"
+    messages = [
+        {
+            "role": "user",
+            "content": prompt,
+         },
+    ]
+    response = engine.inference([messages], n=1, model="deepseek-chat", debug=True)[0][0]
+    print(response)
+    response = engine.inference([messages], n=1, model="deepseek-reasoner", debug=True)[0][0]
+    print(response)
