@@ -50,7 +50,13 @@ def api_inference(
         params['anthropic_version'] = 'vertex-2023-10-16'
         version = "v3"
         rollout_n = params.pop("n", None)
-    elif "doubao" in model or model in ["ep-20250204210426-gclbn", "ep-20250410151344-fzm9z", "deepseek-reasoner", "deepseek-chat"]:
+    elif "doubao" in model or model in [
+        "ep-20250204210426-gclbn",
+        "ep-20250410151344-fzm9z",
+        "ep-20250410145517-rpbrz",
+        "deepseek-reasoner",
+        "deepseek-chat",
+    ]:
         symbol = "doubao"
         version = "v3"
         if "r1" in model or "reasoner" in model:
@@ -236,25 +242,26 @@ def image2base64(image: Image.Image) -> str:
 
 
 if __name__ == "__main__":
-    engine = ApiInferenceEngine(model="o3", max_tokens=1000)
-    path = "/Users/lxy/Documents/GitHub/LinXueyuanStdio/deeplin/assets/kline.png"
-    image = Image.open(path)
-    base64image = image2base64(image)
-    prompt = "What is in the image?"
-    messages = [
-        {
-            "role": "user",
-            "content": [
-                {"type": "image_url", "image_url": base64image},
-                {"type": "text", "text": prompt},
-            ]
-         },
-    ]
-    response = engine.inference([messages], n=1, multi_modal=True, debug=True)[0][0]
-    print(response)
+    # engine = ApiInferenceEngine(model="o3", max_tokens=1000)
+    # path = "/Users/lxy/Documents/GitHub/LinXueyuanStdio/deeplin/assets/kline.png"
+    # image = Image.open(path)
+    # base64image = image2base64(image)
+    # prompt = "What is in the image?"
+    # messages = [
+    #     {
+    #         "role": "user",
+    #         "content": [
+    #             {"type": "image_url", "image_url": base64image},
+    #             {"type": "text", "text": prompt},
+    #         ]
+    #      },
+    # ]
+    # response = engine.inference([messages], n=1, multi_modal=True, debug=True)[0][0]
+    # print(response)
 
 
-    engine = ApiInferenceEngine(model="deepseek-chat", max_tokens=1000)
+    # engine = ApiInferenceEngine(model="deepseek-chat", max_tokens=1000)
+    engine = ApiInferenceEngine(model="gemini", max_tokens=1000)
     prompt = "Hello, how are you?"
     messages = [
         {
@@ -262,7 +269,7 @@ if __name__ == "__main__":
             "content": prompt,
          },
     ]
-    response = engine.inference([messages], n=1, model="deepseek-chat", debug=True)[0][0]
+    response = engine.inference([messages], n=1, model="gemini", debug=True)[0][0]
     print(response)
-    response = engine.inference([messages], n=1, model="deepseek-reasoner", debug=True)[0][0]
-    print(response)
+    # response = engine.inference([messages], n=1, model="gemini", debug=True)[0][0]
+    # print(response)
