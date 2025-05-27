@@ -1,4 +1,5 @@
 from functools import partial
+import json
 import requests
 import os
 
@@ -20,6 +21,56 @@ def get_userid_and_token(
     return data["user_id"], data["token"]
 
 
+def retry_request(func):
+    def wrapper(*args, **kwargs):
+        max_retry = kwargs.get("max_retry", 3)
+        for i in range(max_retry):
+            try:
+                result = func(*args, **kwargs)
+                if not result:
+                    logger.error(f"Function {func.__name__} returned None, retrying {i + 1}/{max_retry}...")
+                    continue
+                # logger.debug(f"Function {func.__name__} succeeded on attempt {i + 1}.")
+                return result
+            except Exception as e:
+                logger.error(f"Request failed: {e}, retrying {i + 1}/{max_retry}...")
+        logger.error("Max retries reached, returning None.")
+        return None
+    return wrapper
+
+
+@retry_request
+def api_request(
+    url: str,
+    params: dict,
+    headers: dict,
+    timeout: int = 100,
+    debug: bool = False,
+    rollout_n: int | None = None,
+    model: str = "gpt-3.5-turbo",
+):
+    res = requests.post(
+        url,
+        json=params,
+        headers=headers,
+        timeout=timeout,
+    )
+    resp = res.json()
+    if "data" in resp:
+        resp = resp["data"]
+    if debug or "choices" not in resp:
+        logger.debug(f"API request to {repr(url)} returned: {json.dumps(resp, ensure_ascii=False, indent=2)}")
+    if rollout_n is not None:
+        if model == "claude" and "content" in resp:
+            if isinstance(resp["content"], list) and len(resp["content"]) == 1 and resp["content"][0].get("type") == "text":
+                resp["content"] = resp["content"][0]["text"]
+            resp["choices"] = [{"message": resp}]
+    choices: list = resp.get("choices", [])
+    if len(choices) == 0:
+        return None
+    return choices
+
+
 def api_inference(
     user_id: str,
     token: str,
@@ -32,6 +83,7 @@ def api_inference(
     timeout: int,
     multi_modal: bool = False,
     debug: bool = False,
+    max_retry: int = 3,
 ):
     chat_h = {"Content-Type": "application/json", "userId": user_id, "token": token}
     params = {
@@ -85,34 +137,25 @@ def api_inference(
     else:
         chat_url = f'https://arsenal-openai.10jqka.com.cn:8443/vtuber/ai_access/{symbol}/{version}/chat/completions'
 
-    try:
-        res = requests.post(
-            chat_url,
-            json=params,
-            headers=chat_h,
-            timeout=timeout,
-        )
-        resp = res.json()
-        if "data" in resp:
-            resp = resp["data"]
-    except Exception as e:
-        logger.error(f"Error during API request: {e}")
+    choices = api_request(
+        url=chat_url,
+        params=params,
+        headers=chat_h,
+        timeout=timeout,
+        debug=debug,
+        max_retry=max_retry,
+        rollout_n=rollout_n,
+        model=model,
+    )
+    if choices is None:
+        logger.error("API request returned None.")
         return [None] * n
-
-    if debug or "choices" not in resp:
-        logger.debug(resp)
-    if rollout_n is not None:
-        if model == "claude" and "content" in resp:
-            if isinstance(resp["content"], list) and len(resp["content"]) == 1 and resp["content"][0].get("type") == "text":
-                resp["content"] = resp["content"][0]["text"]
-            resp["choices"] = [{"message": resp}]
-    choices = resp.get("choices", [])
-    responses: list[str] = []
     if len(choices) == 0:
-        logger.warning(f"No response from server.\n{resp}")
+        logger.warning(f"No response from server.\n{choices}")
         return [None] * n
     if len(choices) < n:
         logger.warning(f"Expected {n} responses, but got {len(choices)}.")
+    responses: list[str] = []
     for i in range(min(n, len(choices))):
         item = choices[i]
         if "message" in item:
@@ -169,6 +212,7 @@ class ApiInferenceEngine(InferenceEngine):
         temperature = kwargs.get("temperature", self.temperature)
         top_p = kwargs.get("top_p", self.top_p)
         timeout = kwargs.get("timeout", 100)
+        max_retry = kwargs.get("max_retry", 3)
         debug = kwargs.get("debug", False)
         multi_modal = kwargs.get("multi_modal", False)
         if debug:
