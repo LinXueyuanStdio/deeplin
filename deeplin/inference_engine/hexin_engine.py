@@ -48,6 +48,7 @@ def api_request(
     debug: bool = False,
     rollout_n: int | None = None,
     model: str = "gpt-3.5-turbo",
+    max_retry: int = 3,
 ):
     res = requests.post(
         url,
@@ -143,9 +144,9 @@ def api_inference(
         headers=chat_h,
         timeout=timeout,
         debug=debug,
-        max_retry=max_retry,
         rollout_n=rollout_n,
         model=model,
+        max_retry=max_retry,
     )
     if choices is None:
         logger.error("API request returned None.")
