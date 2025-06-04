@@ -243,6 +243,7 @@ class ApiInferenceEngine(InferenceEngine):
                 timeout=timeout,
                 multi_modal=multi_modal,
                 debug=debug,
+                max_retry=max_retry,
             )
         def g(messages: list[dict]):
             if not messages:
@@ -259,6 +260,7 @@ class ApiInferenceEngine(InferenceEngine):
                 timeout=timeout,
                 multi_modal=multi_modal,
                 debug=debug,
+                max_retry=max_retry,
             )
             return True, results[0] if len(results) > 0 else None
         if self.support_n_sampling(model):
