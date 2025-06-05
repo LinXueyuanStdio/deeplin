@@ -85,6 +85,8 @@ def api_inference(
     multi_modal: bool = False,
     debug: bool = False,
     max_retry: int = 3,
+    functions: list[dict] | None = None,
+    function_call: str | None = None,
 ):
     chat_h = {"Content-Type": "application/json", "userId": user_id, "token": token}
     params = {
@@ -95,6 +97,10 @@ def api_inference(
         "top_p": top_p,
         "n": n,
     }
+    if functions:
+        params["functions"] = functions
+    if function_call:
+        params["function_call"] = function_call
     rollout_n = None
     version = "v1"
     if model == "claude":
@@ -216,6 +222,8 @@ class ApiInferenceEngine(InferenceEngine):
         max_retry = kwargs.get("max_retry", 3)
         debug = kwargs.get("debug", False)
         multi_modal = kwargs.get("multi_modal", False)
+        functions = kwargs.get("functions", None)
+        function_call = kwargs.get("function_call", None)
         if debug:
             logger.warning(f"supports n sampling: {self.support_n_sampling(model)}")
         messages_list = []
@@ -245,6 +253,8 @@ class ApiInferenceEngine(InferenceEngine):
                 multi_modal=multi_modal,
                 debug=debug,
                 max_retry=max_retry,
+                functions=functions,
+                function_call=function_call,
             )
         def g(messages: list[dict]):
             if not messages:
@@ -262,6 +272,8 @@ class ApiInferenceEngine(InferenceEngine):
                 multi_modal=multi_modal,
                 debug=debug,
                 max_retry=max_retry,
+                functions=functions,
+                function_call=function_call,
             )
             return True, results[0] if len(results) > 0 else None
         if self.support_n_sampling(model):
@@ -307,16 +319,35 @@ if __name__ == "__main__":
     # print(response)
 
 
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "Search",
+                "description": "通过搜索引擎搜索互联网上的内容。当知识无法回答用户提出的问题，或用户请求联网搜索时调用此工具。",
+                "parameters": {
+                    "type": "object",
+                    "required": ["query"],
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "要搜索的文本内容。",
+                        }
+                    },
+                },
+            },
+        },
+    ]
+    functions = [tool["function"] for tool in tools]
+
     # engine = ApiInferenceEngine(model="deepseek-chat", max_tokens=1000)
     engine = ApiInferenceEngine(model="gemini", max_tokens=1000)
-    prompt = "Hello, how are you?"
-    messages = [
-        {
-            "role": "user",
-            "content": prompt,
-         },
+    prompts = [
+        "你能用的工具有哪些？请写出用户定义的工具的名称和描述",
+    ] + [
+        # f"你能使用的工具有哪些？请写出第{i + 1}个工具的名称和描述" for i in range(10)
     ]
-    response = engine.inference([messages], n=1, model="gemini", debug=True)[0][0]
-    print(response)
+    response = engine.inference(prompts, n=1, model="o3", debug=True, functions=functions)
+    print(json.dumps(response, ensure_ascii=False, indent=2))
     # response = engine.inference([messages], n=1, model="gemini", debug=True)[0][0]
     # print(response)
