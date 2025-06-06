@@ -67,6 +67,8 @@ def api_request(
                 resp["content"] = resp["content"][0]["text"]
             resp["choices"] = [{"message": resp}]
     choices: list = resp.get("choices", [])
+    if debug:
+        logger.debug(f"API request to {repr(url)} returned choices: {json.dumps(choices, ensure_ascii=False, indent=2)}")
     if len(choices) == 0:
         return None
     return choices
@@ -171,6 +173,8 @@ def api_inference(
             reasoning_content = message["reasoning_content"] if "reasoning_content" in message else ""
             if len(reasoning_content) > 0:
                 content = f"<think>\n{reasoning_content}\n</think>\n{content}"
+            if "function_call" in message:
+                content = message["function_call"]
         elif "text" in item:
             content = item["text"]
         else:
