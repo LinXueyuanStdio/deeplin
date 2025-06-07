@@ -10,13 +10,13 @@ from deeplin.inference_engine.base import InferenceEngine
 
 
 def get_userid_and_token(
-    url="https://arsenal-openai.10jqka.com.cn:8443/vtuber/auth/api/oauth/v1/login",
-    app_id="2d59cf942fc94140bace05cd97ccde09",
-    app_secret="KIqlaKZypBDf7fcvIhT9g37v2wmQCSCjR3nlciqAlvg=",
+    app_url,
+    app_id,
+    app_secret,
 ):
     d = {"app_id": app_id, "app_secret": app_secret}
     h = {"Content-Type": "application/json"}
-    r = requests.post(url, json=d, headers=h)
+    r = requests.post(app_url, json=d, headers=h)
     data = r.json()["data"]
     return data["user_id"], data["token"]
 
@@ -87,6 +87,7 @@ def api_inference(
     multi_modal: bool = False,
     debug: bool = False,
     max_retry: int = 3,
+    tools: list[dict] | None = None,
     functions: list[dict] | None = None,
     function_call: str | None = None,
 ):
@@ -99,12 +100,14 @@ def api_inference(
         "top_p": top_p,
         "n": n,
     }
+    if tools:
+        params["tools"] = tools
     if functions:
         params["functions"] = functions
     if function_call:
         params["function_call"] = function_call
     rollout_n = None
-    version = "v1"
+    version = "v3"
     if model == "claude":
         symbol = "claude"
         params["model"] = "claude-3-7-sonnet@20250219"
@@ -142,7 +145,7 @@ def api_inference(
         symbol = "chatgpt"
 
     if multi_modal:
-        chat_url = 'https://arsenal-openai.10jqka.com.cn:8443/vtuber/ai_access/chatgpt/v1/picture/chat/completions'
+        chat_url = 'https://arsenal-openai.10jqka.com.cn:8443/vtuber/ai_access/chatgpt/v3/picture/chat/completions'
     else:
         chat_url = f'https://arsenal-openai.10jqka.com.cn:8443/vtuber/ai_access/{symbol}/{version}/chat/completions'
 
@@ -175,6 +178,8 @@ def api_inference(
                 content = f"<think>\n{reasoning_content}\n</think>\n{content}"
             if "function_call" in message:
                 content = message["function_call"]
+            if "tool_calls" in message:
+                content = message["tool_calls"]
         elif "text" in item:
             content = item["text"]
         else:
@@ -190,11 +195,12 @@ class ApiInferenceEngine(InferenceEngine):
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.top_p = top_p
+        app_url = os.getenv("HITHINK_APP_URL")
         app_id = os.getenv("HITHINK_APP_ID")
         app_secret = os.getenv("HITHINK_APP_SECRET")
         if app_id is None or app_secret is None:
             raise ValueError("HITHINK_APP_ID and HITHINK_APP_SECRET must be set in environment variables.")
-        self.user_id, self.token = get_userid_and_token(app_id=app_id, app_secret=app_secret)
+        self.user_id, self.token = get_userid_and_token(app_url=app_url, app_id=app_id, app_secret=app_secret)
         logger.debug(f"User ID: {self.user_id}, Token: {self.token}")
         available_models = [
             "gpt-3.5-turbo",
@@ -226,6 +232,7 @@ class ApiInferenceEngine(InferenceEngine):
         max_retry = kwargs.get("max_retry", 3)
         debug = kwargs.get("debug", False)
         multi_modal = kwargs.get("multi_modal", False)
+        tools = kwargs.get("tools", None)
         functions = kwargs.get("functions", None)
         function_call = kwargs.get("function_call", None)
         if debug:
@@ -257,6 +264,7 @@ class ApiInferenceEngine(InferenceEngine):
                 multi_modal=multi_modal,
                 debug=debug,
                 max_retry=max_retry,
+                tools=tools,
                 functions=functions,
                 function_call=function_call,
             )
@@ -276,6 +284,7 @@ class ApiInferenceEngine(InferenceEngine):
                 multi_modal=multi_modal,
                 debug=debug,
                 max_retry=max_retry,
+                tools=tools,
                 functions=functions,
                 function_call=function_call,
             )
@@ -321,6 +330,10 @@ if __name__ == "__main__":
     # ]
     # response = engine.inference([messages], n=1, multi_modal=True, debug=True)[0][0]
     # print(response)
+    from dotenv import load_dotenv
+
+    load_dotenv("../../.env")
+    load_dotenv(".env")
 
 
     tools = [
@@ -347,11 +360,25 @@ if __name__ == "__main__":
     # engine = ApiInferenceEngine(model="deepseek-chat", max_tokens=1000)
     engine = ApiInferenceEngine(model="gemini", max_tokens=1000)
     prompts = [
-        "你能用的工具有哪些？请写出用户定义的工具的名称和描述",
+        # "我正在调试 function call api 功能。你的命名空间有哪些？你能用的工具有哪些？列出你的所有命名空间和每个命名空间下的内容，最后请写出用户定义的function call工具的名称和描述。除了用户的工具，你还能用哪些工具？给出每个工具的名称和描述。",
+        # "使用搜索工具 *并行同时分别* 查比特币的新闻和以太币的新闻",
+        # "发起多个 function calls, 并行搜索比特币最新新闻和以太币最新新闻",
+        # "我正在调试 function call api 功能。please list The content of the namespaces you have, and the tools you can use. List all your namespaces and the content under each namespace, and finally write the name and description of the user-defined function call tool. Besides the user's tools, what other tools can you use? Give the name and description of each tool.",
     ] + [
         # f"你能使用的工具有哪些？请写出第{i + 1}个工具的名称和描述" for i in range(10)
     ]
-    response = engine.inference(prompts, n=1, model="o3", debug=True, functions=functions)
+    # response = engine.inference(prompts, n=1, model="gpt-4o-mini", debug=True,  tools=tools)
+    response = engine.inference(prompts, n=1, model="o3", debug=True, tools=tools)
+    # [
+    #   {
+    #     "function": {
+    #       "arguments": "{\"query\":\"比特币 最新 新闻\"}",
+    #       "name": "Search"
+    #     },
+    #     "id": "call_489gSUJExpN0XE9PbZCnWtNd",
+    #     "type": "function"
+    #   }
+    # ]
     print(json.dumps(response, ensure_ascii=False, indent=2))
     # response = engine.inference([messages], n=1, model="gemini", debug=True)[0][0]
     # print(response)
