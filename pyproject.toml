@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "deeplin"
-version = "0.1.38"
+version = "0.1.39"
 description = "deep learning toolbox for LinXueyuan"
 authors = ["LinXueyuanStdio <23211526+LinXueyuanStdio@users.noreply.github.com>"]
 license = "MIT"
