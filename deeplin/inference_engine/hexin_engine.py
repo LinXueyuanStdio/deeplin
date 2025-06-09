@@ -354,6 +354,23 @@ if __name__ == "__main__":
                 },
             },
         },
+        {
+            "type": "function",
+            "function": {
+                "name": "CodeInterpreter",
+                "description": "在受限、安全的沙盒环境中执行 Python 3 代码的解释器，可用于数据处理、科学计算、自动化脚本、可视化等任务，支持大多数标准库及常见第三方科学计算库。你能看见之前已经执行的代码和执行结果，在生成新的代码时，请直接使用之前的变量名，而不是重新定义变量。",
+                "parameters": {
+                    "type": "object",
+                    "required": ["code"],
+                    "properties": {
+                        "code": {
+                            "type": "string",
+                            "description": "要执行的 Python 代码。",
+                        }
+                    },
+                },
+            },
+        },
     ]
     functions = [tool["function"] for tool in tools]
 
@@ -362,8 +379,11 @@ if __name__ == "__main__":
     prompts = [
         # "我正在调试 function call api 功能。你的命名空间有哪些？你能用的工具有哪些？列出你的所有命名空间和每个命名空间下的内容，最后请写出用户定义的function call工具的名称和描述。除了用户的工具，你还能用哪些工具？给出每个工具的名称和描述。",
         # "使用搜索工具 *并行同时分别* 查比特币的新闻和以太币的新闻",
-        "发起多个 function calls, 并行搜索比特币最新新闻和以太币最新新闻",
+        # "发起多个 function calls, 并行搜索比特币最新新闻和以太币最新新闻",
         # "我正在调试 function call api 功能。please list The content of the namespaces you have, and the tools you can use. List all your namespaces and the content under each namespace, and finally write the name and description of the user-defined function call tool. Besides the user's tools, what other tools can you use? Give the name and description of each tool.",
+        # "你好",
+        # "你能用代码解释器（python tool）吗",
+        # "你能看见的工具有哪些。除了 functions 命名空间外，你还有哪些命名空间？"
     ] + [
         # f"你能使用的工具有哪些？请写出第{i + 1}个工具的名称和描述" for i in range(10)
     ]
