@@ -18,7 +18,9 @@ def token_counts(texts: list[str], tokenizer, **kwargs) -> list[int]:
 
 
 def assign_token_count(
-    rows: list[dict], text_fn: Callable[[dict[str, str]], str], tokenizer
+    rows: list[dict],
+    text_fn: Callable[[dict[str, str]], str],
+    tokenizer,
 ) -> list[dict]:
     texts = [text_fn(row) for row in rows]
     inputs = tokenizer(texts, add_special_tokens=False)
@@ -50,13 +52,19 @@ def draw_token_count_histogram(
         assign_token_count, text_fn=text_fn, tokenizer=tokenizer
     )
     rows = xmap(
-        jsonlist, assign_token_count_fn, thread_pool_size=16, is_batch_work_func=True
+        jsonlist,
+        assign_token_count_fn,
+        max_workers=16,
+        is_batch_work_func=True,
     )
     lengths = [row["token_count"] for row in rows]
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     draw_histogram(
-        lengths, bins=100, title="Token Count Distribution", fig_save_path=output_path
+        lengths,
+        bins=100,
+        title="Token Count Distribution",
+        fig_save_path=output_path,
     )
 
 
@@ -86,6 +94,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     data_path = Path(args.data_path)
     jsonlist = load_json_or_jsonl(data_path)
-    draw_token_count_histogram(args.tokenizer_path, jsonlist, response_text_fn, args.output_path)
+    draw_token_count_histogram(
+        args.tokenizer_path,
+        jsonlist,
+        response_text_fn,
+        args.output_path,
+    )
 
     print(f"Token count histogram saved to: {args.output_path}")
