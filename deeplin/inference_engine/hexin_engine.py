@@ -1,9 +1,11 @@
 from functools import partial
 import json
+from typing import Any, Dict, List, Optional, Union
 import requests
 import os
 
 from loguru import logger
+from requests import Response
 from xlin import element_mapping
 
 from deeplin.inference_engine.base import InferenceEngine
@@ -24,31 +26,31 @@ def get_userid_and_token(
 def retry_request(func):
     def wrapper(*args, **kwargs):
         max_retry = kwargs.get("max_retry", 3)
+        debug = kwargs.get("debug", False)
         for i in range(max_retry):
             try:
                 result = func(*args, **kwargs)
                 if not result:
-                    logger.error(f"Function {func.__name__} returned None, retrying {i + 1}/{max_retry}...")
+                    if debug:
+                        logger.error(f"Function {func.__name__} returned None, retrying {i + 1}/{max_retry}...")
                     continue
                 # logger.debug(f"Function {func.__name__} succeeded on attempt {i + 1}.")
                 return result
             except Exception as e:
-                logger.error(f"Request failed: {e}, retrying {i + 1}/{max_retry}...")
-        logger.error("Max retries reached, returning None.")
+                if debug:
+                    logger.error(f"Request failed: {e}, retrying {i + 1}/{max_retry}...")
+        if debug:
+            logger.error("Max retries reached, returning None.")
         return None
+
     return wrapper
 
 
-@retry_request
 def api_request(
     url: str,
     params: dict,
     headers: dict,
     timeout: int = 100,
-    debug: bool = False,
-    rollout_n: int | None = None,
-    model: str = "gpt-3.5-turbo",
-    max_retry: int = 3,
 ):
     res = requests.post(
         url,
@@ -56,6 +58,98 @@ def api_request(
         headers=headers,
         timeout=timeout,
     )
+    return res
+
+
+def prepare_api_request_params(
+    user_id: str,
+    token: str,
+    messages: List[Dict[str, Any]],
+    model: str,
+    max_tokens: int,
+    temperature: float,
+    top_p: float,
+    n: int,
+    stream: bool = False,
+    multi_modal: bool = False,
+    tools: Optional[List[Dict[str, Any]]] = None,
+    functions: Optional[List[Dict[str, Any]]] = None,
+    function_call: Optional[Union[str, Dict[str, Any]]] = None,
+) -> tuple[str, dict, dict, int]:
+    """Prepare parameters for api_request based on model type"""
+
+    # Base parameters
+    params = {
+        "messages": messages,
+        "temperature": temperature,
+        "model": model,
+        "max_tokens": max_tokens,
+        "top_p": top_p,
+        "n": n,
+        "stream": stream,
+    }
+
+    if tools:
+        params["tools"] = tools
+    if functions:
+        params["functions"] = functions
+    if function_call:
+        params["function_call"] = function_call
+
+    rollout_n = None
+    version = "v3"
+
+    # Model-specific handling (copied from hexin_engine.py)
+    if model == "claude":
+        symbol = "claude"
+        params["model"] = "claude-3-7-sonnet@20250219"
+        params["anthropic_version"] = "vertex-2023-10-16"
+        version = "v3"
+        rollout_n = params.pop("n", None)
+    elif "doubao" in model or model in [
+        "ep-20250204210426-gclbn",
+        "ep-20250410151344-fzm9z",
+        "ep-20250410145517-rpbrz",
+        "deepseek-reasoner",
+        "deepseek-chat",
+    ]:
+        symbol = "doubao"
+        version = "v3"
+        if "r1" in model or "reasoner" in model:
+            params["model"] = "ep-20250410145517-rpbrz"
+            rollout_n = params.pop("n", None)
+        elif "v3" in model or "chat" in model:
+            params["model"] = "ep-20250410151344-fzm9z"
+    elif model == "r1-qianfan":
+        symbol = "qianfan"
+        params["model"] = "deepseek-r1"
+        rollout_n = params.pop("n", None)
+    elif model == "gemini":
+        symbol = "gemini"
+        params["model"] = "gemini-2.5-pro-preview-03-25"
+    elif model in ["gpt-4o-mini", "o3", "o4-mini"]:
+        del params["max_tokens"]
+        params["max_completion_tokens"] = max_tokens
+        symbol = "chatgpt"
+        if model in ["o3", "o4-mini"]:
+            del params["temperature"]
+    else:
+        symbol = "chatgpt"
+
+    # Build URL
+
+    if multi_modal:
+        chat_url = "https://arsenal-openai.10jqka.com.cn:8443/vtuber/ai_access/chatgpt/v1/picture/chat/completions"
+    else:
+        chat_url = f"https://arsenal-openai.10jqka.com.cn:8443/vtuber/ai_access/{symbol}/{version}/chat/completions"
+
+    # Build headers
+    headers = {"Content-Type": "application/json", "userId": user_id, "token": token}
+
+    return chat_url, params, headers, rollout_n
+
+
+def process_api_response_to_choices(res: Response, url: str, model: str, debug: bool, rollout_n: Optional[int] = None):
     resp = res.json()
     if "data" in resp:
         resp = resp["data"]
@@ -74,6 +168,65 @@ def api_request(
     return choices
 
 
+def process_api_choices(choices: List[Dict], model: str, n: int, rollout_n: Optional[int] = None) -> List[str]:
+    """Process choices from api_request into standardized format"""
+    if not choices:
+        return [None] * n
+
+    # Handle special case for models that need rollout_n processing
+    if rollout_n is not None:
+        if model == "claude" and len(choices) > 0 and "content" in choices[0]:
+            content = choices[0]["content"]
+            if isinstance(content, list) and len(content) == 1 and content[0].get("type") == "text":
+                content = content[0]["text"]
+            choices = [{"message": {"content": content, "role": "assistant"}}]
+
+    responses = []
+    for i in range(min(n, len(choices))):
+        item = choices[i]
+        if "message" in item:
+            message = item["message"]
+            content = message.get("content", "")
+            reasoning_content = message.get("reasoning_content", "")
+
+            # Handle reasoning content
+            if reasoning_content:
+                content = f"<think>\n{reasoning_content}\n</think>\n{content}"
+
+            # Handle function calls and tool calls
+            if "function_call" in message:
+                content = message["function_call"]
+            elif "tool_calls" in message:
+                content = message["tool_calls"]
+        elif "text" in item:
+            content = item["text"]
+        else:
+            content = item
+
+        responses.append(content)
+
+    # Fill remaining slots with None if needed
+    if len(responses) < n:
+        responses += [None] * (n - len(responses))
+
+    return responses
+
+
+def support_n_sampling(model: str):
+    models = [
+        "doubao-deepseek-r1",
+        "ep-20250410145517-rpbrz",
+        "deepseek-reasoner",
+        "doubao-deepseek-v3",
+        "ep-20250410151344-fzm9z",
+        "deepseek-chat",
+        "r1-qianfan",
+        "claude",
+    ]
+    return model in models
+
+
+@retry_request
 def api_inference(
     user_id: str,
     token: str,
@@ -83,111 +236,50 @@ def api_inference(
     temperature: float,
     top_p: float,
     n: int,
-    timeout: int,
     multi_modal: bool = False,
-    debug: bool = False,
-    max_retry: int = 3,
     tools: list[dict] | None = None,
     functions: list[dict] | None = None,
     function_call: str | None = None,
+    timeout: int = 60,
+    debug: bool = False,
+    max_retry: int = 3,
 ):
-    chat_h = {"Content-Type": "application/json", "userId": user_id, "token": token}
-    params = {
-        "messages": input_message,
-        "temperature": temperature,
-        "model": model,
-        "max_tokens": max_tokens,
-        "top_p": top_p,
-        "n": n,
-    }
-    if tools:
-        params["tools"] = tools
-    if functions:
-        params["functions"] = functions
-    if function_call:
-        params["function_call"] = function_call
-    rollout_n = None
-    version = "v3"
-    if model == "claude":
-        symbol = "claude"
-        params["model"] = "claude-3-7-sonnet@20250219"
-        params['anthropic_version'] = 'vertex-2023-10-16'
-        version = "v3"
-        rollout_n = params.pop("n", None)
-    elif "doubao" in model or model in [
-        "ep-20250204210426-gclbn",
-        "ep-20250410151344-fzm9z",
-        "ep-20250410145517-rpbrz",
-        "deepseek-reasoner",
-        "deepseek-chat",
-    ]:
-        symbol = "doubao"
-        version = "v3"
-        if "r1" in model or "reasoner" in model:
-            params["model"] = 'ep-20250410145517-rpbrz'
-            rollout_n = params.pop("n", None)
-        elif "v3" in model or "chat" in model:
-            params["model"] = 'ep-20250410151344-fzm9z'
-    elif model == "r1-qianfan":
-        symbol = "qianfan"
-        params["model"] = 'deepseek-r1'
-        rollout_n = params.pop("n", None)
-    elif model == "gemini":
-        symbol = "gemini"
-        params["model"] = 'gemini-2.5-pro-preview-03-25'
-    elif model in ["gpt-4o-mini", "o3", "o4-mini"]:
-        del params["max_tokens"]
-        params["max_completion_tokens"] = max_tokens
-        symbol = "chatgpt"
-        if model in ["o3", "o4-mini"]:
-            del params["temperature"]
-    else:
-        symbol = "chatgpt"
-
-    if multi_modal:
-        chat_url = 'https://arsenal-openai.10jqka.com.cn:8443/vtuber/ai_access/chatgpt/v1/picture/chat/completions'
-    else:
-        chat_url = f'https://arsenal-openai.10jqka.com.cn:8443/vtuber/ai_access/{symbol}/{version}/chat/completions'
-
-    choices = api_request(
+    chat_url, params, headers, rollout_n = prepare_api_request_params(
+        user_id=user_id,
+        token=token,
+        messages=input_message,
+        model=model,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        top_p=top_p,
+        n=n,
+        multi_modal=multi_modal,
+        tools=tools,
+        functions=functions,
+        function_call=function_call,
+    )
+    res = api_request(
         url=chat_url,
         params=params,
-        headers=chat_h,
+        headers=headers,
         timeout=timeout,
+    )
+    choices = process_api_response_to_choices(
+        res,
+        url=chat_url,
+        model=model,
         debug=debug,
         rollout_n=rollout_n,
-        model=model,
-        max_retry=max_retry,
     )
-    if choices is None:
-        logger.error("API request returned None.")
-        return [None] * n
-    if len(choices) == 0:
-        logger.warning(f"No response from server.\n{choices}")
-        return [None] * n
-    if len(choices) < n:
-        logger.warning(f"Expected {n} responses, but got {len(choices)}.")
-    responses: list[str] = []
-    for i in range(min(n, len(choices))):
-        item = choices[i]
-        if "message" in item:
-            message = item["message"]
-            content = message["content"] if "content" in message else ""
-            reasoning_content = message["reasoning_content"] if "reasoning_content" in message else ""
-            if len(reasoning_content) > 0:
-                content = f"<think>\n{reasoning_content}\n</think>\n{content}"
-            if "function_call" in message:
-                content = message["function_call"]
-            if "tool_calls" in message:
-                content = message["tool_calls"]
-        elif "text" in item:
-            content = item["text"]
-        else:
-            content = item
-        responses.append(content)
-    if len(responses) < n:
-        responses += [None] * (n - len(responses))
+    responses = process_api_response_to_choices(
+        choices,
+        chat_url,
+        model,
+        debug,
+        rollout_n,
+    )
     return responses
+
 
 class ApiInferenceEngine(InferenceEngine):
     def __init__(self, model: str, max_tokens: int, temperature: float = 0.6, top_p: float = 1.0):
@@ -204,24 +296,22 @@ class ApiInferenceEngine(InferenceEngine):
         logger.debug(f"User ID: {self.user_id}, Token: {self.token}")
         available_models = [
             "gpt-3.5-turbo",
-            "gpt4o", "o3", "o4-mini",
+            "gpt4o",
+            "o3",
+            "o4-mini",
             "gpt4",
             "claude",
             "gemini",
-            "doubao-deepseek-r1", "ep-20250204210426-gclbn", "deepseek-reasoner", # deepseek-reasoner
-            "doubao-deepseek-v3", "ep-20250410145517-rpbrz", "deepseek-chat", # deepseek-chat
+            "doubao-deepseek-r1",
+            "ep-20250204210426-gclbn",
+            "deepseek-reasoner",  # deepseek-reasoner
+            "doubao-deepseek-v3",
+            "ep-20250410145517-rpbrz",
+            "deepseek-chat",  # deepseek-chat
             "r1-qianfan",
         ]
         if model not in available_models:
             logger.warning(f"Model {model} is not available. Please choose from {available_models}.")
-
-    def support_n_sampling(self, model: str):
-        models = [
-            "doubao-deepseek-r1", "ep-20250410145517-rpbrz", "deepseek-reasoner",
-            "doubao-deepseek-v3", "ep-20250410151344-fzm9z", "deepseek-chat",
-            "r1-qianfan", "claude",
-        ]
-        return model in models
 
     def inference(self, prompts: list[str] | list[list[dict]], n=1, **kwargs) -> list[list[str]]:
         model = kwargs.get("model", self.model)
@@ -236,7 +326,7 @@ class ApiInferenceEngine(InferenceEngine):
         functions = kwargs.get("functions", None)
         function_call = kwargs.get("function_call", None)
         if debug:
-            logger.warning(f"supports n sampling: {self.support_n_sampling(model)}")
+            logger.warning(f"supports n sampling: {support_n_sampling(model)}")
         messages_list = []
         for prompt in prompts:
             if isinstance(prompt, dict):
@@ -268,6 +358,7 @@ class ApiInferenceEngine(InferenceEngine):
                 functions=functions,
                 function_call=function_call,
             )
+
         def g(messages: list[dict]):
             if not messages:
                 return True, None
@@ -289,7 +380,8 @@ class ApiInferenceEngine(InferenceEngine):
                 function_call=function_call,
             )
             return True, results[0] if len(results) > 0 else None
-        if self.support_n_sampling(model):
+
+        if support_n_sampling(model):
             n_messages_list = sum([messages_list for _ in range(n)], [])
             n_responses = element_mapping(n_messages_list, g)
             num = len(messages_list)
@@ -303,9 +395,12 @@ class ApiInferenceEngine(InferenceEngine):
         responses = element_mapping(messages_list, f)
         return responses
 
+
 from PIL import Image
 from io import BytesIO
 import base64
+
+
 def image2base64(image: Image.Image) -> str:
     buffered = BytesIO()
     image.save(buffered, format="PNG")
@@ -334,7 +429,6 @@ if __name__ == "__main__":
 
     load_dotenv("../../.env")
     load_dotenv(".env")
-
 
     tools = [
         {
