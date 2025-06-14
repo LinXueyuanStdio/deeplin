@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "deeplin"
-version = "0.1.40"
+version = "0.1.41"
 description = "deep learning toolbox for LinXueyuan"
 authors = ["LinXueyuanStdio <23211526+LinXueyuanStdio@users.noreply.github.com>"]
 license = "MIT"
@@ -14,6 +14,12 @@ openai = "*"
 python-dotenv = "*"
 loguru = "*"
 transformers = "*"
+fastapi = "*"
+uvicorn = "*"
+pydantic = "*"
+pytest = "*"
+pytest-asyncio = "*"
+httpx = "*"
 
 [build-system]
 requires = ["poetry-core"]
