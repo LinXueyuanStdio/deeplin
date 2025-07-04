@@ -271,11 +271,10 @@ def api_inference(
         debug=debug,
         rollout_n=rollout_n,
     )
-    responses = process_api_response_to_choices(
+    responses = process_api_choices(
         choices,
-        chat_url,
         model,
-        debug,
+        n,
         rollout_n,
     )
     return responses
@@ -480,6 +479,7 @@ if __name__ == "__main__":
         # "你能看见的工具有哪些。除了 functions 命名空间外，你还有哪些命名空间？"
     ] + [
         # f"你能使用的工具有哪些？请写出第{i + 1}个工具的名称和描述" for i in range(10)
+        "请搜索比特币的最新新闻"
     ]
     # response = engine.inference(prompts, n=1, model="gpt-4o-mini", debug=True,  tools=tools)
     response = engine.inference(prompts, n=1, model="o3", debug=True, tools=tools)
