@@ -8,7 +8,7 @@ import openai
 API_KEY = "sk-deeplin-fastapi-proxy-key-12345"
 
 # 服务器地址
-BASE_URL = "http://localhost:8000/v1"
+BASE_URL = "http://localhost:8777/v1"
 
 async def test_openai_client():
     """测试 OpenAI 客户端调用"""
