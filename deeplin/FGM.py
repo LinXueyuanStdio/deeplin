@@ -1,5 +1,5 @@
 import torch
-from typing import Callable
+from typing_extensions import Callable
 
 
 class FGM(object):
