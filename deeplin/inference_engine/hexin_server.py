@@ -4,7 +4,7 @@ FastAPI server that proxies OpenAI API endpoints using the hexin_engine backend.
 import os
 import time
 import uuid
-from typing import List, Optional, Dict, Any, Union, AsyncGenerator, Literal
+from typing_extensions import List, Optional, Dict, Any, Union, AsyncGenerator, Literal
 from contextlib import asynccontextmanager
 
 import uvicorn
