@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Callable
+from typing_extensions import Callable
 from functools import partial
 
 from transformers import AutoTokenizer
