@@ -2,6 +2,7 @@
 FastAPI server that proxies OpenAI API endpoints using the hexin_engine backend.
 """
 import os
+import sys
 import time
 import uuid
 from typing_extensions import List, Optional, Dict, Any, Union, AsyncGenerator, Literal
@@ -470,20 +471,44 @@ async def health_check():
     return {"status": "healthy", "authenticated": USER_ID is not None and TOKEN is not None}
 
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for the hexin_server module"""
     import argparse
     from dotenv import load_dotenv
 
     load_dotenv()
-    parser = argparse.ArgumentParser(description="Run the FastAPI server for OpenAI API proxy")
-    parser.add_argument("--host", type=str, default="0.0.0.0")
-    parser.add_argument("--port", type=int, default=8777)
+
+    parser = argparse.ArgumentParser(
+        description="Run the FastAPI server for OpenAI API proxy",
+        prog="python -m deeplin.inference_engine.hexin_server"
+    )
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
+    parser.add_argument("--port", type=int, default=8777, help="Port to bind to (default: 8777)")
+    parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
+    parser.add_argument("--log-level", type=str, default="info", choices=["debug", "info", "warning", "error"], help="Log level (default: info)")
+
     args = parser.parse_args()
 
-    uvicorn.run(
-        "deeplin.inference_engine.hexin_server:app",
-        host=args.host,
-        port=args.port,
-        reload=True,
-        log_level="info",
-    )
+    print(f"Starting DeepLin Hexin Server on {args.host}:{args.port}")
+    print(f"Log level: {args.log_level}")
+    if args.reload:
+        print("Auto-reload enabled")
+
+    try:
+        uvicorn.run(
+            "deeplin.inference_engine.hexin_server:app",
+            host=args.host,
+            port=args.port,
+            reload=args.reload,
+            log_level=args.log_level,
+        )
+    except KeyboardInterrupt:
+        print("\nServer stopped by user")
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error starting server: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
