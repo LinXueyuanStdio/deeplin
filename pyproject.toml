@@ -1,10 +1,13 @@
 [tool.poetry]
 name = "deeplin"
-version = "0.1.43"
+version = "0.1.44"
 description = "deep learning toolbox for LinXueyuan"
 authors = ["LinXueyuanStdio <23211526+LinXueyuanStdio@users.noreply.github.com>"]
 license = "MIT"
 readme = "README.md"
+
+[tool.poetry.scripts]
+deeplin-hexin-server = "deeplin.inference_engine.hexin_server:main"
 
 [tool.poetry.dependencies]
 numpy = "*"
